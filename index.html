@@ -1,0 +1,902 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
+<title>三维弹球 - Space Cadet</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+html,body{width:100%;height:100%;overflow:hidden;background:#000;touch-action:manipulation;user-select:none;-webkit-user-select:none;-webkit-tap-highlight-color:transparent;font-family:Arial,sans-serif}
+#mode-bar{position:fixed;top:0;left:0;right:0;height:38px;display:flex;align-items:center;justify-content:center;gap:5px;background:rgba(0,0,0,0.8);z-index:25;padding:0 6px;overflow-x:auto}
+.mode-btn{height:28px;padding:0 11px;border:1px solid rgba(255,255,255,0.25);border-radius:14px;background:rgba(255,255,255,0.07);color:#ccc;font-size:11px;font-weight:bold;cursor:pointer;transition:all .15s;white-space:nowrap}
+.mode-btn.active{background:rgba(80,120,255,0.5);border-color:rgba(120,160,255,0.8);color:#fff}
+.mode-btn.danger{background:rgba(200,50,50,0.35);border-color:rgba(255,100,100,0.5)}
+.mode-btn.success{background:rgba(50,180,50,0.35);border-color:rgba(100,255,100,0.5)}
+.mode-btn.warn{background:rgba(180,140,20,0.35);border-color:rgba(255,200,60,0.5)}
+#app{width:100%;height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;padding-top:38px}
+#canvas-wrap{position:relative;display:flex;align-items:center;justify-content:center}
+canvas{display:block;image-rendering:auto;border-radius:4px}
+#ctrl-bar{position:fixed;bottom:0;left:0;right:0;height:100px;display:flex;z-index:10}
+.ctrl-btn{flex:1;display:flex;align-items:center;justify-content:center;font-size:18px;font-weight:bold;color:#fff;opacity:0.85;letter-spacing:2px;transition:background .1s}
+#btn-left{background:rgba(30,60,180,0.7);border-right:2px solid rgba(255,255,255,0.15)}
+#btn-left.active{background:rgba(40,80,220,0.9)}
+#btn-right{background:rgba(180,30,30,0.7)}
+#btn-right.active{background:rgba(220,40,40,0.9)}
+#btn-launch{position:fixed;bottom:100px;right:0;width:80px;height:80px;background:rgba(180,120,0,0.7);border-radius:50% 0 0 0;display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:bold;color:#fff;z-index:11;opacity:0.85}
+#btn-launch.active{background:rgba(220,160,20,0.9)}
+#editor-bar{position:fixed;bottom:0;left:0;right:0;height:90px;display:flex;gap:5px;align-items:center;justify-content:center;background:rgba(0,0,0,0.85);z-index:10;padding:0 6px;flex-wrap:wrap}
+.ed-tool{min-width:42px;height:40px;padding:0 8px;border:1px solid rgba(255,255,255,0.2);border-radius:8px;background:rgba(255,255,255,0.05);color:#aaa;font-size:11px;font-weight:bold;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:3px;transition:all .15s}
+.ed-tool.active{border-color:rgba(100,180,255,0.8);background:rgba(80,120,255,0.35);color:#fff}
+.ed-tool .dot{width:10px;height:10px;border-radius:50%;display:inline-block}
+.ed-action{min-width:36px;height:36px;padding:0 6px;border:1px solid rgba(255,255,255,0.12);border-radius:8px;background:rgba(255,255,255,0.03);color:#ccc;font-size:11px;cursor:pointer;transition:all .15s}
+.panel-overlay{position:fixed;top:38px;bottom:80px;left:0;right:0;background:rgba(0,0,0,0.5);z-index:30;display:flex;align-items:flex-start;justify-content:center;padding-top:8px;overflow-y:auto}
+.panel-box{background:rgba(20,20,40,0.97);border:1px solid rgba(100,150,255,0.3);border-radius:12px;max-width:420px;width:94%;padding:14px;color:#ddd;position:relative}
+.panel-box h3{font-size:14px;color:#8af;margin-bottom:10px;text-align:center}
+.panel-close{position:absolute;right:8px;top:8px;width:24px;height:24px;border:none;background:rgba(255,0,0,0.3);color:#fff;border-radius:50%;cursor:pointer;font-size:14px;display:flex;align-items:center;justify-content:center}
+.panel-row{display:flex;align-items:center;margin-bottom:7px;gap:6px}
+.panel-row label{font-size:11px;color:#aaa;min-width:40px}
+.panel-row input[type=range]{flex:1;min-width:70px;height:20px;-webkit-appearance:none;background:rgba(255,255,255,0.1);border-radius:4px}
+.panel-row input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:16px;height:16px;background:#8af;border-radius:50%;cursor:pointer}
+.panel-row input[type=number]{width:56px;height:22px;background:rgba(0,0,0,0.5);border:1px solid rgba(255,255,255,0.2);border-radius:4px;color:#fff;text-align:center;font-size:11px}
+.panel-row input[type=color]{width:34px;height:22px;border:1px solid rgba(255,255,255,0.2);border-radius:4px;cursor:pointer;background:transparent;padding:0}
+.panel-row select{height:22px;background:rgba(0,0,0,0.5);border:1px solid rgba(255,255,255,0.2);border-radius:4px;color:#fff;font-size:11px;padding:0 4px}
+.panel-row .val{font-size:10px;color:#888;min-width:28px;text-align:right}
+#btn-load-file{display:none}
+@media(orientation:landscape){#ctrl-bar{height:80px}#btn-launch{bottom:80px;right:10px;width:70px;height:70px;border-radius:50%}#editor-bar{height:70px}.panel-overlay{bottom:70px}}
+</style>
+</head>
+<body>
+
+<div id="mode-bar">
+  <button class="mode-btn active" id="btn-play-mode" onclick="switchMode('play')">🎮 游玩</button>
+  <button class="mode-btn" id="btn-edit-mode" onclick="switchMode('edit')">✏️ 编辑</button>
+  <span style="width:1px;height:18px;background:rgba(255,255,255,0.1);margin:0 2px"></span>
+  <button class="mode-btn" id="btn-test" onclick="testCustomLevel()" style="display:none">▶ 测试</button>
+  <button class="mode-btn success" id="btn-save" onclick="saveLevel()" style="display:none">💾 保存</button>
+  <button class="mode-btn" id="btn-load" onclick="document.getElementById('btn-load-file').click()" style="display:none">📂 加载</button>
+  <input type="file" id="btn-load-file" accept=".json" onchange="loadLevel(event)">
+  <button class="mode-btn danger" id="btn-clear" onclick="clearLevel()" style="display:none">🗑 清空</button>
+  <button class="mode-btn warn" id="btn-physics" onclick="togglePhysics()" style="display:none">⚙️ 物理</button>
+</div>
+
+<div id="app"><div id="canvas-wrap"><canvas id="game"></canvas></div></div>
+
+<div id="physics-panel" class="panel-overlay" style="display:none" onclick="if(event.target===this)togglePhysics()">
+  <div class="panel-box"><button class="panel-close" onclick="togglePhysics()">✕</button>
+    <h3>⚙️ 全局物理参数</h3><div id="phys-content"></div>
+  </div>
+</div>
+
+<div id="prop-panel" class="panel-overlay" style="display:none" onclick="if(event.target===this)hidePropPanel()">
+  <div class="panel-box"><button class="panel-close" onclick="hidePropPanel()">✕</button>
+    <h3 id="prop-title">组件属性</h3><div id="prop-content"></div>
+  </div>
+</div>
+
+<div id="ctrl-bar">
+  <div class="ctrl-btn" id="btn-left">◀ 左挡板</div>
+  <div class="ctrl-btn" id="btn-right">右挡板 ▶</div>
+</div>
+<div id="btn-launch">发射</div>
+
+<div id="editor-bar" style="display:none">
+  <button class="ed-tool" data-tool="bumper" onclick="setTool('bumper')"><span class="dot" style="background:#f33"></span>弹柱</button>
+  <button class="ed-tool" data-tool="target" onclick="setTool('target')">▯靶子</button>
+  <button class="ed-tool" data-tool="wall" onclick="setTool('wall')">╱墙壁</button>
+  <button class="ed-tool" data-tool="flipper" onclick="setTool('flipper')">◣弹臂</button>
+  <span style="color:rgba(255,255,255,0.1)">|</span>
+  <button class="ed-action" id="btn-delete" onclick="deleteSelected()" style="opacity:0.3">🗑</button>
+  <button class="ed-action" onclick="resetLevel()">🔄</button>
+  <button class="ed-action" id="btn-props" onclick="showPropPanel()" style="opacity:0.3">📐</button>
+</div>
+
+<script>
+(function() {
+const canvas = document.getElementById('game');
+const ctx = canvas.getContext('2d');
+const W = 600, H = 450;
+canvas.width = W; canvas.height = H;
+
+function resize() {
+  const availW = window.innerWidth;
+  const availH = window.innerHeight - 38 - (window.innerWidth > window.innerHeight ? 80 : 100);
+  let gw, gh;
+  if (availW / availH > 4/3) { gh = Math.floor(availH); gw = Math.floor(gh * 4/3); }
+  else { gw = Math.floor(availW); gh = Math.floor(gw * 3/4); }
+  canvas.style.width = gw + 'px';
+  canvas.style.height = gh + 'px';
+}
+window.addEventListener('resize', resize);
+window.addEventListener('orientationchange', () => setTimeout(resize, 100));
+resize();
+
+// ==================== CONSTANTS & GLOBALS ====================
+const MAX_BALLS = 8;
+const DUPLICATE_COOLDOWN = 0.5; // 秒
+
+// ==================== PHYSICS SETTINGS (per-frame at 60fps reference) ====================
+const phys = {
+  gravity: 0.25,
+  ballRadius: 7,
+  ballRestitution: 0.45,
+  maxSpeed: 10,
+  flipperSpeed: 0.12,
+  friction: 0.10,
+  wallRestitution: 0.28,
+  bumperImpulse: 5,
+  duplicateChance: 1.0,
+};
+// Expose to window for inline handlers
+window._phys = phys;
+window._cl = null; // will be set later
+
+let physicsAccumulator = 0;
+
+function buildPhysicsPanel() {
+  const el = document.getElementById('phys-content');
+  const rows = [
+    ['重力', 'gravity', 0.05, 0.60, 0.01],
+    ['球半径', 'ballRadius', 3, 14, 1],
+    ['球弹力', 'ballRestitution', 0.10, 0.90, 0.05],
+    ['最大速度', 'maxSpeed', 4, 18, 1],
+    ['挡板速度', 'flipperSpeed', 0.04, 0.30, 0.01],
+    ['摩擦力', 'friction', 0.0, 0.40, 0.02],
+    ['墙壁弹力', 'wallRestitution', 0.08, 0.60, 0.02],
+    ['弹柱冲量', 'bumperImpulse', 2, 14, 0.5],
+  ];
+  el.innerHTML = rows.map(([label, key, min, max, step]) => {
+    const v = phys[key];
+    return `<div class="panel-row"><label>${label}</label>
+      <input type="range" min="${min}" max="${max}" step="${step}" value="${v}"
+        oninput="window._phys['${key}']=+this.value;this.nextElementSibling.textContent=Number(this.value).toFixed(3)">
+      <span class="val">${Number(v).toFixed(3)}</span></div>`;
+  }).join('');
+}
+buildPhysicsPanel();
+
+function togglePhysics() {
+  const p = document.getElementById('physics-panel');
+  if (p.style.display === 'none') { p.style.display = 'flex'; buildPhysicsPanel(); }
+  else p.style.display = 'none';
+}
+
+// ==================== INPUT ====================
+const input = { left: false, right: false, launchCharge: false, launchPower: 0 };
+const btnLeft = document.getElementById('btn-left');
+const btnRight = document.getElementById('btn-right');
+const btnLaunch = document.getElementById('btn-launch');
+
+function setLeft(v) { input.left = v; btnLeft.classList.toggle('active', v); }
+function setRight(v) { input.right = v; btnRight.classList.toggle('active', v); }
+
+btnLeft.addEventListener('touchstart', e => { e.preventDefault(); setLeft(true); });
+btnLeft.addEventListener('touchend', e => { e.preventDefault(); setLeft(false); });
+btnLeft.addEventListener('touchcancel', () => setLeft(false));
+btnLeft.addEventListener('mousedown', e => { e.preventDefault(); setLeft(true); });
+btnLeft.addEventListener('mouseup', () => setLeft(false));
+btnLeft.addEventListener('mouseleave', () => setLeft(false));
+btnRight.addEventListener('touchstart', e => { e.preventDefault(); setRight(true); });
+btnRight.addEventListener('touchend', e => { e.preventDefault(); setRight(false); });
+btnRight.addEventListener('touchcancel', () => setRight(false));
+btnRight.addEventListener('mousedown', e => { e.preventDefault(); setRight(true); });
+btnRight.addEventListener('mouseup', () => setRight(false));
+btnRight.addEventListener('mouseleave', () => setRight(false));
+
+function startCharge(e) {
+  e.preventDefault();
+  if (game.state === 'attract' || game.state === 'gameover') initTable();
+  input.launchCharge = true;
+}
+function endCharge(e) {
+  e.preventDefault();
+  input.launchCharge = false;
+  const pwr = input.launchPower;
+  input.launchPower = 0;
+  if (pwr > 0 && game.balls[0] && game.balls[0].locked) launchBall(pwr);
+}
+btnLaunch.addEventListener('touchstart', startCharge);
+btnLaunch.addEventListener('touchend', endCharge);
+btnLaunch.addEventListener('touchcancel', () => { input.launchCharge = false; input.launchPower = 0; });
+btnLaunch.addEventListener('mousedown', startCharge);
+btnLaunch.addEventListener('mouseup', endCharge);
+btnLaunch.addEventListener('mouseleave', () => { input.launchCharge = false; input.launchPower = 0; });
+
+window.addEventListener('keydown', e => {
+  if (e.key === 'ArrowLeft' || e.key === 'z' || e.key === 'Z') setLeft(true);
+  if (e.key === 'ArrowRight' || e.key === 'm' || e.key === 'M' || e.key === '/') setRight(true);
+  if (e.key === ' ' || e.key === 'Enter') {
+    e.preventDefault();
+    if (game.state === 'attract' || game.state === 'gameover') { initTable(); return; }
+    const fb = game.balls[0]; if (fb && fb.locked) launchBall(10 + Math.random() * 4);
+  }
+  if ((e.key === 'Delete' || e.key === 'Backspace') && editor.mode === 'edit') deleteSelected();
+  if (e.key === 'Escape') { document.getElementById('physics-panel').style.display='none'; hidePropPanel(); }
+});
+window.addEventListener('keyup', e => {
+  if (e.key === 'ArrowLeft' || e.key === 'z' || e.key === 'Z') setLeft(false);
+  if (e.key === 'ArrowRight' || e.key === 'm' || e.key === 'M' || e.key === '/') setRight(false);
+});
+
+// ==================== MODE / EDITOR STATE ====================
+const editor = { mode: 'play', tool: null, selected: null, wallStart: null, dragging: null, _lastMouse: {x:300,y:225} };
+
+function switchMode(mode) {
+  editor.mode = mode; editor.tool = null; editor.selected = null; editor.wallStart = null; editor.dragging = null;
+  hidePropPanel(); document.getElementById('physics-panel').style.display = 'none';
+  document.getElementById('btn-play-mode').classList.toggle('active', mode==='play');
+  document.getElementById('btn-edit-mode').classList.toggle('active', mode==='edit');
+  const isE = mode === 'edit';
+  document.getElementById('ctrl-bar').style.display = isE ? 'none' : '';
+  document.getElementById('btn-launch').style.display = isE ? 'none' : '';
+  document.getElementById('editor-bar').style.display = isE ? 'flex' : 'none';
+  ['btn-test','btn-save','btn-load','btn-clear','btn-physics'].forEach(id => { document.getElementById(id).style.display = isE ? '' : 'none'; });
+  if (isE) { game.state = 'edit'; deselectAllTools(); updateButtonStates(); }
+  else {
+    if (customLevelActive && game.balls.length > 0) { game.state = 'waiting'; game.balls[0].locked = true; }
+    else { game.state = 'attract'; }
+  }
+  resize();
+}
+function setTool(tool) {
+  if (editor.mode !== 'edit') return;
+  editor.tool = (editor.tool === tool) ? null : tool;
+  editor.wallStart = null; editor.selected = null; hidePropPanel(); deselectAllTools();
+  if (editor.tool) { const b = document.querySelector('.ed-tool[data-tool="'+editor.tool+'"]'); if (b) b.classList.add('active'); }
+  updateButtonStates();
+}
+function deselectAllTools() { document.querySelectorAll('.ed-tool').forEach(b => b.classList.remove('active')); }
+
+// ==================== CUSTOM LEVEL DATA ====================
+let customLevelActive = false;
+const customLevel = defaultLevelData();
+window._cl = customLevel;
+
+function defaultLevelData() {
+  return {
+    bumpers: [
+      { x:300,y:130,r:24,points:500,color:'#ff3333',impulse:5 },
+      { x:250,y:195,r:24,points:400,color:'#ff8833',impulse:5 },
+      { x:350,y:195,r:24,points:300,color:'#ffcc33',impulse:5 },
+    ],
+    targets: [
+      { x:58,y:150,w:12,h:28,points:1000,color:'#4488ff' },
+      { x:58,y:200,w:12,h:28,points:1000,color:'#4488ff' },
+      { x:58,y:250,w:12,h:28,points:1000,color:'#4488ff' },
+    ],
+    walls: [
+      [55,30,55,380,0.3,'#aaa'],[545,30,545,380,0.3,'#aaa'],
+      [120,320,55,370,0.5,'#ffcc00'],[120,320,170,360,0.5,'#ffcc00'],[55,370,170,360,0.5,'#ffcc00'],
+      [480,320,545,370,0.5,'#ffcc00'],[480,320,430,360,0.5,'#ffcc00'],[545,370,430,360,0.5,'#ffcc00'],
+      [140,38,140,300,0.3,'#888'],[460,38,460,300,0.3,'#888'],
+      [140,140,100,200,0.3,'#aaa'],[460,140,500,200,0.3,'#aaa'],
+      [170,420,270,450,0.2,'#666'],[430,420,330,450,0.2,'#666'],
+      [55,380,100,430,0.2,'#666'],[100,430,170,450,0.2,'#555'],
+      [545,380,500,430,0.2,'#666'],[500,430,430,450,0.2,'#555'],
+      [520,38,520,400,0.3,'#888'],[545,380,520,400,0.3,'#888'],[545,30,520,38,0.3,'#888'],
+      [460,38,500,100,0.4,'#ccc'],
+    ],
+    flippers: [
+      { px:195,py:410,len:72,restAngle:0.6,activeAngle:-0.35,side:'left',speed:0.12 },
+      { px:405,py:410,len:72,restAngle:Math.PI-0.6,activeAngle:Math.PI+0.35,side:'right',speed:0.12 },
+    ]
+  };
+}
+
+function saveLevel() {
+  const name = prompt('关卡名称:', '我的弹球关卡'); if (!name) return;
+  const data = {
+    name, physics: { ...phys },
+    bumpers: customLevel.bumpers.map(b => ({ x:b.x,y:b.y,r:b.r,points:b.points,color:b.color,impulse:b.impulse||0.030 })),
+    targets: customLevel.targets.map(t => ({ x:t.x,y:t.y,w:t.w,h:t.h,points:t.points,color:t.color })),
+    walls: customLevel.walls.map(w => [...w]),
+    flippers: customLevel.flippers.map(f => ({ px:f.px,py:f.py,len:f.len,restAngle:f.restAngle,activeAngle:f.activeAngle,side:f.side,speed:f.speed||0.025 })),
+  };
+  const blob = new Blob([JSON.stringify(data,null,2)],{type:'application/json'});
+  const a = document.createElement('a'); a.href=URL.createObjectURL(blob);
+  a.download = name.replace(/[^a-zA-Z0-9\u4e00-\u9fff_-]/g,'_')+'.json'; a.click(); URL.revokeObjectURL(a.href);
+}
+function loadLevel(e) {
+  const file = e.target.files[0]; if (!file) return;
+  const reader = new FileReader();
+  reader.onload = function(ev) {
+    try {
+      const data = JSON.parse(ev.target.result);
+      if (data.physics) Object.assign(phys, data.physics);
+      if (data.bumpers) customLevel.bumpers = data.bumpers.map(b => ({...b,glow:0,hitFlash:0,impulse:b.impulse||0.030}));
+      if (data.targets) customLevel.targets = data.targets.map(t => ({...t,active:true,flash:0}));
+      if (data.walls) customLevel.walls = data.walls;
+      if (data.flippers) customLevel.flippers = data.flippers.map(f => ({...f,angularSpeed:f.speed||0.025,active:false,tip:{x:0,y:0}}));
+      switchMode('edit'); buildPhysicsPanel();
+    } catch (err) { alert('文件格式错误'); }
+  };
+  reader.readAsText(file); e.target.value = '';
+}
+function clearLevel() { customLevel.bumpers=[];customLevel.targets=[];customLevel.walls=[];customLevel.flippers=[]; editor.selected=null;editor.wallStart=null;hidePropPanel();updateButtonStates(); }
+function resetLevel() {
+  const d = defaultLevelData();
+  customLevel.bumpers = d.bumpers.map(b=>({...b,glow:0,hitFlash:0}));
+  customLevel.targets = d.targets.map(t=>({...t,active:true,flash:0}));
+  customLevel.walls = d.walls.map(w=>[...w]);
+  customLevel.flippers = d.flippers.map(f=>({...f,angularSpeed:f.speed||0.025,active:false,tip:{x:0,y:0}}));
+  editor.selected=null;editor.wallStart=null;hidePropPanel();updateButtonStates();
+}
+function testCustomLevel() { customLevelActive=true; initTableFromCustom(); switchMode('play'); }
+
+function initTableFromCustom() {
+  game.flippers = customLevel.flippers.map(f => ({
+    px:f.px, py:f.py, len:f.len, restAngle:f.restAngle, activeAngle:f.activeAngle,
+    angle:f.restAngle, targetAngle:f.restAngle,
+    angularSpeed: f.speed || phys.flipperSpeed,
+    active:false, side:f.side, tip:{x:0,y:0}, angularVel:0
+  }));
+  game.bumpers = customLevel.bumpers.map(b => ({
+    x:b.x, y:b.y, r:b.r, points:b.points, color:b.color,
+    glow:0, hitFlash:0, impulse: b.impulse || phys.bumperImpulse
+  }));
+  game.targets = customLevel.targets.map(t => ({ x:t.x, y:t.y, w:t.w, h:t.h, points:t.points, color:t.color, active:true, flash:0 }));
+  game.walls = customLevel.walls.map(w => [...w]);
+  game.score=0; game.lives=3; game.particles=[];
+  game.balls=[createBall(532,390)]; game.balls[0].locked=true; game.state='waiting';
+  game._duplicateTimer = 0;
+}
+function spawnBallsDefault() { game.balls=[createBall(532,390)]; game.balls[0].locked=true; game.state='waiting'; game._duplicateTimer=0; }
+
+function updateButtonStates() {
+  const b=document.getElementById('btn-delete'), p=document.getElementById('btn-props');
+  if(b)b.style.opacity=editor.selected?'1':'0.3';
+  if(p)p.style.opacity=editor.selected?'1':'0.3';
+}
+function deleteSelected() {
+  if(!editor.selected)return;
+  const {type,index}=editor.selected;
+  if(type==='bumper')customLevel.bumpers.splice(index,1);
+  else if(type==='target')customLevel.targets.splice(index,1);
+  else if(type==='wall')customLevel.walls.splice(index,1);
+  else if(type==='flipper')customLevel.flippers.splice(index,1);
+  editor.selected=null;hidePropPanel();updateButtonStates();
+}
+
+// ==================== PROPERTY PANEL ====================
+function showPropPanel() { if(!editor.selected)return; document.getElementById('prop-panel').style.display='flex';buildPropPanel(); }
+function hidePropPanel() { document.getElementById('prop-panel').style.display='none'; }
+
+function numRow(label,value,min,max,setter,step){
+  step=step||1;
+  return '<div class="panel-row"><label>'+label+'</label><input type="range" min="'+min+'" max="'+max+'" step="'+step+'" value="'+value+'" oninput="this.nextElementSibling.textContent=Number(this.value).toFixed(3);('+setter.toString()+')(+this.value)"><span class="val">'+Number(value).toFixed(3)+'</span></div>';
+}
+
+function buildPropPanel() {
+  const sel = editor.selected; if(!sel)return;
+  const c=document.getElementById('prop-content');
+  const {type,index}=sel;
+  let h='';
+  // Use window._cl to ensure the setter references the live customLevel array
+  if(type==='bumper'&&customLevel.bumpers[index]){
+    const b=customLevel.bumpers[index]; document.getElementById('prop-title').textContent='弹柱属性';
+    h+=numRow('X',b.x,5,W,v=>{window._cl.bumpers['+index+'].x=v});
+    h+=numRow('Y',b.y,5,H,v=>{window._cl.bumpers['+index+'].y=v});
+    h+=numRow('半径',b.r,4,50,v=>{window._cl.bumpers['+index+'].r=v});
+    h+=numRow('分数',b.points,10,10000,v=>{window._cl.bumpers['+index+'].points=v});
+    h+=numRow('弹力',b.impulse||5,1,20,v=>{window._cl.bumpers['+index+'].impulse=v},0.5);
+    h+='<div class="panel-row"><label>颜色</label><input type="color" value="'+b.color+'" onchange="window._cl.bumpers['+index+'].color=this.value"></div>';
+  }else if(type==='target'&&customLevel.targets[index]){
+    const t=customLevel.targets[index]; document.getElementById('prop-title').textContent='靶子属性';
+    h+=numRow('X',t.x,5,W,v=>{window._cl.targets['+index+'].x=v});
+    h+=numRow('Y',t.y,5,H,v=>{window._cl.targets['+index+'].y=v});
+    h+=numRow('宽',t.w,4,60,v=>{window._cl.targets['+index+'].w=v});
+    h+=numRow('高',t.h,4,100,v=>{window._cl.targets['+index+'].h=v});
+    h+=numRow('分数',t.points,10,10000,v=>{window._cl.targets['+index+'].points=v});
+    h+='<div class="panel-row"><label>颜色</label><input type="color" value="'+t.color+'" onchange="window._cl.targets['+index+'].color=this.value"></div>';
+  }else if(type==='wall'&&customLevel.walls[index]){
+    const w=customLevel.walls[index]; document.getElementById('prop-title').textContent='墙壁属性';
+    h+=numRow('起点X',w[0],0,W,v=>{window._cl.walls['+index+'][0]=v});
+    h+=numRow('起点Y',w[1],0,H,v=>{window._cl.walls['+index+'][1]=v});
+    h+=numRow('终点X',w[2],0,W,v=>{window._cl.walls['+index+'][2]=v});
+    h+=numRow('终点Y',w[3],0,H,v=>{window._cl.walls['+index+'][3]=v});
+    h+=numRow('弹力',w[4],0.05,0.90,v=>{window._cl.walls['+index+'][4]=v},0.01);
+    h+='<div class="panel-row"><label>颜色</label><input type="color" value="'+w[5]+'" onchange="window._cl.walls['+index+'][5]=this.value"></div>';
+  }else if(type==='flipper'&&customLevel.flippers[index]){
+    const f=customLevel.flippers[index]; document.getElementById('prop-title').textContent='弹臂属性';
+    h+=numRow('轴X',f.px,5,W,v=>{window._cl.flippers['+index+'].px=v});
+    h+=numRow('轴Y',f.py,5,H,v=>{window._cl.flippers['+index+'].py=v});
+    h+=numRow('长度',f.len,20,130,v=>{window._cl.flippers['+index+'].len=v});
+    h+=numRow('静角',f.restAngle,-1.5,4.5,v=>{window._cl.flippers['+index+'].restAngle=v},0.01);
+    h+=numRow('动角',f.activeAngle,-2.0,5.0,v=>{window._cl.flippers['+index+'].activeAngle=v},0.01);
+    h+=numRow('速度',f.speed||0.12,0.03,0.35,v=>{window._cl.flippers['+index+'].speed=v},0.01);
+    h+='<div class="panel-row"><label>方向</label><select onchange="window._cl.flippers['+index+'].side=this.value"><option value="left"'+(f.side==='left'?' selected':'')+'>左侧</option><option value="right"'+(f.side==='right'?' selected':'')+'>右侧</option></select></div>';
+  }
+  c.innerHTML=h;
+}
+
+// ==================== VECTOR MATH ====================
+function len2(x,y){return Math.sqrt(x*x+y*y)}
+function dot(ax,ay,bx,by){return ax*bx+ay*by}
+function len(a){return Math.sqrt(a.x*a.x+a.y*a.y)}
+function vdot(a,b){return a.x*b.x+a.y*b.y}
+
+// ==================== GAME STATE ====================
+const game = { state:'attract',score:0,lives:3,balls:[],flippers:[],bumpers:[],walls:[],targets:[],particles:[],highScore:0,_duplicateTimer:0 };
+
+// ==================== GAME OBJECTS ====================
+function createBall(x,y) { return {x,y,vx:0,vy:0,r:phys.ballRadius,locked:true}; }
+function spawnParticles(x,y,count,color){
+  for(let i=0;i<count;i++){ const a=Math.random()*Math.PI*2,s=0.5+Math.random()*1.5;game.particles.push({x,y,vx:Math.cos(a)*s,vy:Math.sin(a)*s,life:15+Math.random()*15,color,r:0.5+Math.random()*1.5}); }
+}
+function duplicateBall(srcBall) {
+  if (game.balls.length >= MAX_BALLS) return null;
+  if (game._duplicateTimer > 0) return null;
+  const nb = {
+    x: srcBall.x, y: srcBall.y,
+    vx: -srcBall.vx * 0.6 + (Math.random() - 0.5) * 1.5,
+    vy: -srcBall.vy * 0.6 + (Math.random() - 0.5) * 1.5,
+    r: srcBall.r, locked: false, isClone: true
+  };
+  game.balls.push(nb);
+  game._duplicateTimer = DUPLICATE_COOLDOWN;
+  spawnParticles(nb.x, nb.y, 12, '#ffff00');
+  return nb;
+}
+
+// ==================== DEFAULT LEVEL INIT ====================
+function initTable(){
+  if(customLevelActive){initTableFromCustom();return;}
+  game.flippers=[
+    {px:195,py:410,len:72,restAngle:0.6,activeAngle:-0.35,angle:0.6,targetAngle:0.6,angularSpeed:phys.flipperSpeed,active:false,side:'left',tip:{x:0,y:0},angularVel:0},
+    {px:405,py:410,len:72,restAngle:Math.PI-0.6,activeAngle:Math.PI+0.35,angle:Math.PI-0.6,targetAngle:Math.PI-0.6,angularSpeed:phys.flipperSpeed,active:false,side:'right',tip:{x:0,y:0},angularVel:0},
+  ];
+  game.bumpers=[
+    {x:300,y:130,r:24,points:500,color:'#ff3333',glow:0,hitFlash:0,impulse:phys.bumperImpulse},
+    {x:250,y:195,r:24,points:400,color:'#ff8833',glow:0,hitFlash:0,impulse:phys.bumperImpulse},
+    {x:350,y:195,r:24,points:300,color:'#ffcc33',glow:0,hitFlash:0,impulse:phys.bumperImpulse},
+  ];
+  game.targets=[
+    {x:58,y:150,w:12,h:28,points:1000,color:'#4488ff',active:true,flash:0},
+    {x:58,y:200,w:12,h:28,points:1000,color:'#4488ff',active:true,flash:0},
+    {x:58,y:250,w:12,h:28,points:1000,color:'#4488ff',active:true,flash:0},
+  ];
+  game.walls=defaultLevelData().walls.map(w=>[...w]);
+  game.score=0;game.lives=3;game.particles=[];game.balls=[];
+  customLevelActive=false; game.state='waiting'; spawnBallsDefault();
+}
+
+function launchBall(power){
+  for(let i=0;i<game.balls.length;i++){
+    const b=game.balls[i]; if(!b.locked)continue;
+    b.locked=false; b.r=phys.ballRadius;
+    b.x=532+i*3; b.y=395-i*6;
+    b.vx=-1.5-i*0.3; b.vy=-power*0.8;
+    spawnParticles(540,380-i*10,6,'#ffff88');
+  }
+  game.state='playing';
+}
+
+// ==================== PHYSICS ENGINE ====================
+
+function closestPointOnSeg(px,py,ax,ay,bx,by){
+  const dx=bx-ax,dy=by-ay,lsq=dx*dx+dy*dy;
+  if(lsq<1e-8)return{x:ax,y:ay};
+  let t=((px-ax)*dx+(py-ay)*dy)/lsq;
+  t=Math.max(0,Math.min(1,t));
+  return{x:ax+t*dx,y:ay+t*dy};
+}
+
+function collideBall(ball, bumperFlag) {
+  // --- Flipper collision ---
+  for (let f of game.flippers) {
+    const ax = f.px, ay = f.py, bx = f.tip.x, by = f.tip.y;
+    const cp = closestPointOnSeg(ball.x, ball.y, ax, ay, bx, by);
+    const dx = ball.x - cp.x, dy = ball.y - cp.y;
+    const dist = len2(dx, dy);
+    if (dist >= ball.r || dist < 1e-6) continue;
+
+    const nx = dx / dist, ny = dy / dist;
+    ball.x += nx * (ball.r - dist);
+    ball.y += ny * (ball.r - dist);
+
+    // Surface velocity at contact point
+    let svx = 0, svy = 0;
+    if (f.angularVel !== 0) {
+      const rx = cp.x - f.px, ry = cp.y - f.py;
+      svx = -ry * f.angularVel;
+      svy = rx * f.angularVel;
+    }
+
+    const rvx = ball.vx - svx, rvy = ball.vy - svy;
+    const vn = dot(rvx, rvy, nx, ny);
+    if (vn > 0) continue;
+
+    const j = -(1 + phys.wallRestitution + 0.12) * vn;
+    ball.vx += nx * j; ball.vy += ny * j;
+    const tx = -ny, ty = nx;
+    const vt = dot(rvx, rvy, tx, ty);
+    ball.vx -= tx * vt * phys.friction;
+    ball.vy -= ty * vt * phys.friction;
+  }
+
+  // --- Wall collision ---
+  for (let w of game.walls) {
+    const cp = closestPointOnSeg(ball.x, ball.y, w[0], w[1], w[2], w[3]);
+    const dx = ball.x - cp.x, dy = ball.y - cp.y;
+    const dist = len2(dx, dy);
+    if (dist >= ball.r || dist < 1e-6) continue;
+
+    const nx = dx / dist, ny = dy / dist;
+    ball.x += nx * (ball.r - dist);
+    ball.y += ny * (ball.r - dist);
+
+    const vn = dot(ball.vx, ball.vy, nx, ny);
+    if (vn > 0) continue;
+
+    const j = -(1 + w[4]) * vn;
+    ball.vx += nx * j; ball.vy += ny * j;
+    const tx = -ny, ty = nx;
+    const vt = dot(ball.vx, ball.vy, tx, ty);
+    ball.vx -= tx * vt * phys.friction;
+    ball.vy -= ty * vt * phys.friction;
+  }
+
+  // --- Bumper collision ---
+  for (let b of game.bumpers) {
+    const dx = ball.x - b.x, dy = ball.y - b.y;
+    const dist = len2(dx, dy);
+    if (dist >= ball.r + b.r || dist < 1e-6) continue;
+
+    const nx = dx / dist, ny = dy / dist;
+    ball.x += nx * (ball.r + b.r - dist);
+    ball.y += ny * (ball.r + b.r - dist);
+
+    const vn = dot(ball.vx, ball.vy, nx, ny);
+    if (vn > 0) continue;
+
+    const j = -(1 + phys.ballRestitution) * vn + (b.impulse || phys.bumperImpulse);
+    ball.vx += nx * j; ball.vy += ny * j;
+    b.hitFlash = 10; b.glow = 15;
+    game.score += b.points;
+    spawnParticles(b.x, b.y, 2, b.color);
+    if (!bumperFlag.hit) { bumperFlag.hit = true; }
+  }
+
+  // --- Target collision ---
+  for (let t of game.targets) {
+    if (!t.active) continue;
+    const cx = Math.max(t.x, Math.min(ball.x, t.x + t.w));
+    const cy = Math.max(t.y, Math.min(ball.y, t.y + t.h));
+    const dx = ball.x - cx, dy = ball.y - cy;
+    const dist = len2(dx, dy);
+    if (dist >= ball.r) continue;
+
+    t.active = false; t.flash = 15;
+    game.score += t.points;
+    spawnParticles(t.x + t.w/2, t.y + t.h/2, 5, t.color);
+
+    if (dist < 0.01) continue;
+    const nx = dx / dist, ny = dy / dist;
+    ball.x += nx * (ball.r - dist);
+    ball.y += ny * (ball.r - dist);
+    const vn = dot(ball.vx, ball.vy, nx, ny);
+    ball.vx -= 2 * vn * nx; ball.vy -= 2 * vn * ny;
+  }
+}
+
+function ballDrain(idx) {
+  const ball = game.balls[idx];
+  spawnParticles(ball.x, ball.y, 10, '#ff4444');
+  game.balls.splice(idx, 1);
+  if (game.balls.length === 0) {
+    game.lives--;
+    if (game.lives <= 0) { game.state = 'gameover'; if (game.score > game.highScore) game.highScore = game.score; }
+    else spawnBallsDefault();
+  }
+}
+
+function update(dt) {
+  if (editor.mode === 'edit' || game.balls.length === 0) return;
+  if (game.state === 'gameover' || game.state === 'attract') return;
+
+  // dt is in ms, scale to 60fps reference (16.667ms = 1 unit)
+  const sc = Math.min(dt / 16.667, 3);
+
+  // Launch charging
+  if (input.launchCharge && game.balls[0] && game.balls[0].locked)
+    input.launchPower = Math.min(20, input.launchPower + 0.4 * sc);
+
+  // Cooldown
+  if (game._duplicateTimer > 0) game._duplicateTimer -= dt / 1000;
+
+  // Flipper update
+  for (let f of game.flippers) {
+    f.active = (f.side === 'left' ? input.left : input.right);
+    f.targetAngle = f.active ? f.activeAngle : f.restAngle;
+    const diff = f.targetAngle - f.angle;
+    const maxStep = f.angularSpeed * sc;
+    const prev = f.angle;
+    if (Math.abs(diff) < 0.015 * sc) { f.angle = f.targetAngle; f.angularVel = 0; }
+    else { f.angle += Math.sign(diff) * Math.min(Math.abs(diff), maxStep); f.angularVel = (f.angle - prev) / sc; }
+    f.tip.x = f.px + Math.cos(f.angle) * f.len;
+    f.tip.y = f.py + Math.sin(f.angle) * f.len;
+  }
+
+  // Ball physics with dynamic substeps
+  for (let bi = 0; bi < game.balls.length; bi++) {
+    const ball = game.balls[bi];
+    if (ball.locked) continue;
+
+    // Gravity + damping (scaled)
+    ball.vy += phys.gravity * sc;
+    ball.vx *= sc > 1 ? 0.999 : 0.9995;
+    ball.vy *= sc > 1 ? 0.999 : 0.9995;
+
+    // Speed limit
+    const spd = len2(ball.vx, ball.vy);
+    if (spd > phys.maxSpeed) {
+      ball.vx *= phys.maxSpeed / spd;
+      ball.vy *= phys.maxSpeed / spd;
+    }
+
+    // Dynamic substeps: ensure per-step movement < ball.r * 0.35
+    const curSpd = len2(ball.vx, ball.vy);
+    const substeps = Math.max(3, Math.min(12, Math.ceil(curSpd * sc / (ball.r * 0.35))));
+    const ss = sc / substeps;
+
+    for (let s = 0; s < substeps; s++) {
+      ball.x += ball.vx * ss;
+      ball.y += ball.vy * ss;
+
+      const bf = { hit: false };
+      for (let iter = 0; iter < 3; iter++) collideBall(ball, bf);
+
+      if (bf.hit && game.balls.length < MAX_BALLS && game._duplicateTimer <= 0)
+        duplicateBall(ball);
+
+      // Drain
+      if (ball.y > 455 || (ball.y > 440 && ball.x > 260 && ball.x < 340)) {
+        ballDrain(bi); return;
+      }
+
+      // Containment
+      if (ball.x < 50) { ball.x = 50; ball.vx = Math.abs(ball.vx) * phys.wallRestitution; }
+      if (ball.x > 550) { ball.x = 550; ball.vx = -Math.abs(ball.vx) * phys.wallRestitution; }
+      if (ball.y < 30) { ball.y = 30; ball.vy = Math.abs(ball.vy) * phys.wallRestitution; }
+    }
+  }
+
+  // Decay
+  for (let b of game.bumpers) { if (b.hitFlash > 0) b.hitFlash -= sc * 0.5; if (b.glow > 0) b.glow -= sc * 0.3; }
+  for (let t of game.targets) { if (t.flash > 0) t.flash -= sc * 0.5; }
+  for (let p of game.particles) { p.x += p.vx * sc; p.y += p.vy * sc; p.life -= sc * 0.5; }
+  game.particles = game.particles.filter(p => p.life > 0);
+
+  if (game.targets.length > 0 && game.targets.every(t => !t.active))
+    setTimeout(() => { for (let t of game.targets) t.active = true; }, 2000);
+}
+
+// ==================== RENDER ====================
+function drawBackground(){
+  const g=ctx.createLinearGradient(0,0,0,H);
+  g.addColorStop(0,'#0a0a2e');g.addColorStop(0.5,'#0d0d35');g.addColorStop(1,'#080820');
+  ctx.fillStyle=g;ctx.fillRect(0,0,W,H);
+  ctx.fillStyle='#fff';
+  for(let i=0;i<80;i++){
+    const sx=((i*137+42)%W),sy=((i*251+126)%H);
+    const f=0.4+0.6*Math.abs(Math.sin(Date.now()*0.001+i));
+    ctx.globalAlpha=f*(0.5+((i*73)%30)/60);ctx.fillRect(sx,sy,1.5,1.5);
+  }
+  ctx.globalAlpha=1;
+}
+function drawWalls(){
+  for(let w of game.walls){
+    ctx.beginPath();ctx.moveTo(w[0],w[1]);ctx.lineTo(w[2],w[3]);
+    ctx.strokeStyle=w[5];ctx.lineWidth=3;ctx.stroke();
+    ctx.beginPath();ctx.moveTo(w[0],w[1]);ctx.lineTo(w[2],w[3]);
+    ctx.strokeStyle='rgba(255,255,255,0.15)';ctx.lineWidth=1;ctx.stroke();
+  }
+}
+function drawFlippers(){
+  for(let f of game.flippers){
+    const ax=f.px,ay=f.py,bx=f.tip.x,by=f.tip.y;
+    ctx.beginPath();ctx.moveTo(ax,ay);ctx.lineTo(bx,by);ctx.lineWidth=8;ctx.lineCap='round';
+    const g=ctx.createLinearGradient(ax,ay,bx,by);
+    if(f.side==='left'){g.addColorStop(0,'#3355cc');g.addColorStop(1,'#5588ff');}
+    else{g.addColorStop(0,'#cc3333');g.addColorStop(1,'#ff5555');}
+    ctx.strokeStyle=g;ctx.stroke();
+    ctx.beginPath();ctx.moveTo(ax,ay);ctx.lineTo(bx,by);ctx.lineWidth=3;ctx.strokeStyle='rgba(255,255,255,0.3)';ctx.stroke();
+    ctx.beginPath();ctx.arc(f.px,f.py,5,0,Math.PI*2);ctx.fillStyle='#ccc';ctx.fill();ctx.strokeStyle='#888';ctx.lineWidth=1;ctx.stroke();
+  }
+}
+function drawBumpers(){
+  for(let b of game.bumpers){
+    const r=b.r;
+    if(b.glow>0){const gr=ctx.createRadialGradient(b.x,b.y,r*0.5,b.x,b.y,r+b.glow*1.5);gr.addColorStop(0,'rgba(255,255,255,0.4)');gr.addColorStop(1,'rgba(255,255,255,0)');ctx.beginPath();ctx.arc(b.x,b.y,r+b.glow*1.5,0,Math.PI*2);ctx.fillStyle=gr;ctx.fill();}
+    const bg=ctx.createRadialGradient(b.x-r*0.3,b.y-r*0.3,r*0.1,b.x,b.y,r);
+    bg.addColorStop(0,b.hitFlash>0?'#fff':'#ffdddd');bg.addColorStop(0.6,b.color);bg.addColorStop(1,'#000');
+    ctx.beginPath();ctx.arc(b.x,b.y,r,0,Math.PI*2);ctx.fillStyle=bg;ctx.fill();
+    ctx.beginPath();ctx.arc(b.x,b.y,r,0,Math.PI*2);ctx.strokeStyle='rgba(255,255,255,0.5)';ctx.lineWidth=2;ctx.stroke();
+    ctx.beginPath();ctx.arc(b.x,b.y,r*0.4,0,Math.PI*2);ctx.fillStyle='#fff';ctx.fill();
+    ctx.fillStyle='#fff';ctx.font='bold 9px Arial';ctx.textAlign='center';ctx.fillText(b.points,b.x,b.y-r-8);
+  }
+}
+function drawTargets(){
+  for(let t of game.targets){
+    const a=t.flash>0?0.5+0.5*Math.sin(t.flash*0.5):1;ctx.globalAlpha=a;
+    const tg=ctx.createLinearGradient(t.x,t.y,t.x+t.w,t.y);tg.addColorStop(0,t.color);tg.addColorStop(1,'#fff');
+    ctx.fillStyle=t.active?tg:'#333';ctx.fillRect(t.x,t.y,t.w,t.h);
+    ctx.strokeStyle=t.active?'#fff':'#555';ctx.lineWidth=1;ctx.strokeRect(t.x,t.y,t.w,t.h);
+    if(t.flash>0){ctx.fillStyle='rgba(255,255,255,'+(t.flash/15)+')';ctx.fillRect(t.x-2,t.y-2,t.w+4,t.h+4);}
+  }
+  ctx.globalAlpha=1;
+}
+function drawParticles(){
+  for(let p of game.particles){ctx.fillStyle=p.color;ctx.globalAlpha=Math.max(0,Math.min(1,p.life/30));ctx.beginPath();ctx.arc(p.x,p.y,p.r,0,Math.PI*2);ctx.fill();}
+  ctx.globalAlpha=1;
+}
+function drawBallShape(b){
+  const r=b.r;
+  ctx.beginPath();ctx.arc(b.x+r*0.15,b.y+r*0.15,r,0,Math.PI*2);ctx.fillStyle='rgba(0,0,0,0.35)';ctx.fill();
+  const bg=ctx.createRadialGradient(b.x-r*0.3,b.y-r*0.3,r*0.08,b.x,b.y,r);
+  bg.addColorStop(0,'#fff');bg.addColorStop(0.35,'#e8e8e8');bg.addColorStop(0.75,'#888');bg.addColorStop(1,'#444');
+  ctx.beginPath();ctx.arc(b.x,b.y,r,0,Math.PI*2);ctx.fillStyle=bg;ctx.fill();
+  ctx.beginPath();ctx.arc(b.x-r*0.2,b.y-r*0.25,r*0.25,0,Math.PI*2);ctx.fillStyle='rgba(255,255,255,0.55)';ctx.fill();
+  if(b.isClone){ctx.strokeStyle='#ff0';ctx.lineWidth=1.5;ctx.beginPath();ctx.arc(b.x,b.y,r+2,0,Math.PI*2);ctx.stroke();}
+}
+function drawBalls(){
+  for(let b of game.balls){if(b.locked)continue;drawBallShape(b);}
+  if(game.balls.length>0&&game.balls[0].locked)drawBallShape(game.balls[0]);
+}
+function drawPlunger(){
+  ctx.fillStyle='rgba(0,0,0,0.35)';ctx.fillRect(520,38,25,370);ctx.strokeStyle='#666';ctx.lineWidth=1;ctx.strokeRect(520,38,25,370);
+  const py=(game.balls.length>0&&game.balls[0].locked)?game.balls[0].y:395;
+  ctx.fillStyle='#ffcc00';ctx.fillRect(524,py-2,17,10);ctx.strokeStyle='#aa8800';ctx.lineWidth=1;ctx.strokeRect(524,py-2,17,10);
+  if(input.launchCharge&&game.balls.length>0&&game.balls[0].locked){
+    const pp=input.launchPower/20;ctx.fillStyle='rgba(255,0,0,0.6)';ctx.fillRect(525,380,15,20*pp);ctx.strokeStyle='#fff';ctx.lineWidth=1;ctx.strokeRect(525,380,15,20);
+  }
+}
+function drawScoreBoard(){
+  ctx.fillStyle='rgba(0,0,0,0.6)';ctx.fillRect(160,5,280,40);ctx.strokeStyle='#4488ff';ctx.lineWidth=2;ctx.strokeRect(160,5,280,40);
+  ctx.fillStyle='#ff4444';ctx.font='bold 20px "Courier New",monospace';ctx.textAlign='center';ctx.fillText(String(game.score).padStart(8,'0'),300,32);
+  ctx.fillStyle='#88aaff';ctx.font='bold 9px Arial';ctx.fillText('SPACE CADET | 球:'+game.balls.length,300,12);
+}
+function drawOverlay(){
+  if(game.state==='edit'){
+    ctx.fillStyle='rgba(0,0,0,0.3)';ctx.fillRect(0,0,W,H);
+    ctx.fillStyle='#8f8';ctx.font='bold 12px Arial';ctx.textAlign='center';ctx.fillText('编辑模式 - 选工具·放组件·拖移动',W/2,H-12);
+  }
+  if(game.state==='waiting'){
+    ctx.fillStyle='rgba(0,0,0,0.5)';ctx.fillRect(0,0,W,H);
+    ctx.fillStyle='#ffcc00';ctx.font='bold 26px Arial';ctx.textAlign='center';ctx.fillText('按住发射/按空格键',W/2,H/2-15);ctx.fillText('开始游戏',W/2,H/2+20);
+  }else if(game.state==='gameover'){
+    ctx.fillStyle='rgba(0,0,0,0.7)';ctx.fillRect(0,0,W,H);
+    ctx.fillStyle='#ff4444';ctx.font='bold 34px Arial';ctx.textAlign='center';ctx.fillText('游戏结束',W/2,H/2-35);
+    ctx.fillStyle='#fff';ctx.font='bold 18px Arial';ctx.fillText('得分: '+game.score,W/2,H/2+5);
+    if(game.highScore>0){ctx.fillStyle='#ffcc00';ctx.fillText('最高分: '+game.highScore,W/2,H/2+30);}
+    ctx.fillStyle='#8f8';ctx.font='bold 14px Arial';ctx.fillText('按发射重新开始',W/2,H/2+55);
+  }else if(game.state==='attract'){
+    ctx.fillStyle='rgba(0,0,0,0.4)';ctx.fillRect(0,0,W,H);
+    ctx.fillStyle='#ffcc00';ctx.font='bold 28px Arial';ctx.textAlign='center';ctx.fillText('三维弹球',W/2,H/2-25);ctx.fillText('SPACE CADET',W/2,H/2+5);
+    ctx.fillStyle='#fff';ctx.font='bold 13px Arial';ctx.fillText('触摸开始 | 编辑 | ⚙️物理 | 🏓碰撞复制',W/2,H/2+45);
+  }
+}
+
+// ==================== EDITOR RENDER ====================
+function drawEditorSelection(){
+  if(editor.mode!=='edit')return;
+  if(editor.selected){
+    const{type,index}=editor.selected;
+    ctx.strokeStyle='#0f0';ctx.lineWidth=3;ctx.setLineDash([4,3]);
+    if(type==='bumper'&&customLevel.bumpers[index]){const b=customLevel.bumpers[index];ctx.beginPath();ctx.arc(b.x,b.y,b.r+6,0,Math.PI*2);ctx.stroke();}
+    else if(type==='target'&&customLevel.targets[index]){const t=customLevel.targets[index];ctx.strokeRect(t.x-4,t.y-4,t.w+8,t.h+8);}
+    else if(type==='wall'&&customLevel.walls[index]){const w=customLevel.walls[index];ctx.beginPath();ctx.moveTo(w[0],w[1]);ctx.lineTo(w[2],w[3]);ctx.stroke();}
+    else if(type==='flipper'&&customLevel.flippers[index]){const f=customLevel.flippers[index];ctx.beginPath();ctx.arc(f.px,f.py,14,0,Math.PI*2);ctx.stroke();}
+    ctx.setLineDash([]);
+  }
+  if(editor.tool==='wall'&&editor.wallStart){
+    const wp=editor.wallStart,mp=editor._lastMouse||{x:300,y:225};
+    ctx.strokeStyle='#0f0';ctx.lineWidth=2;ctx.setLineDash([6,4]);ctx.beginPath();ctx.moveTo(wp.x,wp.y);ctx.lineTo(mp.x,mp.y);ctx.stroke();ctx.setLineDash([]);
+    ctx.beginPath();ctx.arc(wp.x,wp.y,5,0,Math.PI*2);ctx.fillStyle='#0f0';ctx.fill();
+  }
+}
+function renderEditCanvas(){
+  ctx.clearRect(0,0,W,H);ctx.strokeStyle='rgba(255,255,255,0.05)';ctx.lineWidth=0.5;
+  for(let x=0;x<W;x+=30){ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,H);ctx.stroke();}
+  for(let y=0;y<H;y+=30){ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(W,y);ctx.stroke();}
+  ctx.strokeStyle='rgba(100,200,255,0.25)';ctx.lineWidth=2;ctx.strokeRect(5,5,W-10,H-10);
+  for(let b of customLevel.bumpers){
+    const bg=ctx.createRadialGradient(b.x-b.r*0.3,b.y-b.r*0.3,b.r*0.1,b.x,b.y,b.r);bg.addColorStop(0,'#ffdddd');bg.addColorStop(0.6,b.color);bg.addColorStop(1,'#000');
+    ctx.beginPath();ctx.arc(b.x,b.y,b.r,0,Math.PI*2);ctx.fillStyle=bg;ctx.fill();
+    ctx.beginPath();ctx.arc(b.x,b.y,b.r,0,Math.PI*2);ctx.strokeStyle='rgba(255,255,255,0.5)';ctx.lineWidth=2;ctx.stroke();
+    ctx.beginPath();ctx.arc(b.x,b.y,b.r*0.35,0,Math.PI*2);ctx.fillStyle='#fff';ctx.fill();
+    ctx.fillStyle='#fff';ctx.font='bold 9px Arial';ctx.textAlign='center';ctx.fillText(b.points,b.x,b.y-b.r-8);
+  }
+  for(let t of customLevel.targets){const tg=ctx.createLinearGradient(t.x,t.y,t.x+t.w,t.y);tg.addColorStop(0,t.color);tg.addColorStop(1,'#fff');ctx.fillStyle=tg;ctx.fillRect(t.x,t.y,t.w,t.h);ctx.strokeStyle='#fff';ctx.lineWidth=1;ctx.strokeRect(t.x,t.y,t.w,t.h);}
+  for(let w of customLevel.walls){ctx.beginPath();ctx.moveTo(w[0],w[1]);ctx.lineTo(w[2],w[3]);ctx.strokeStyle=w[5];ctx.lineWidth=3;ctx.stroke();ctx.beginPath();ctx.moveTo(w[0],w[1]);ctx.lineTo(w[2],w[3]);ctx.strokeStyle='rgba(255,255,255,0.2)';ctx.lineWidth=1;ctx.stroke();}
+  for(let f of customLevel.flippers){const tx=f.px+Math.cos(f.restAngle)*f.len,ty=f.py+Math.sin(f.restAngle)*f.len;ctx.beginPath();ctx.moveTo(f.px,f.py);ctx.lineTo(tx,ty);ctx.lineWidth=8;ctx.lineCap='round';ctx.strokeStyle=f.side==='left'?'#5588ff':'#ff5555';ctx.stroke();ctx.beginPath();ctx.arc(f.px,f.py,5,0,Math.PI*2);ctx.fillStyle='#ccc';ctx.fill();}
+  ctx.fillStyle='rgba(0,0,0,0.3)';ctx.fillRect(520,38,25,370);ctx.strokeStyle='#666';ctx.lineWidth=1;ctx.strokeRect(520,38,25,370);
+  ctx.fillStyle='#fff';ctx.strokeStyle='#0f0';ctx.lineWidth=1;ctx.beginPath();ctx.arc(532,390,phys.ballRadius,0,Math.PI*2);ctx.fill();ctx.stroke();
+  drawEditorSelection();drawOverlay();
+}
+function render(){
+  if(editor.mode==='edit'){renderEditCanvas();return;}
+  ctx.clearRect(0,0,W,H);drawBackground();
+  ctx.fillStyle='rgba(10,10,40,0.25)';ctx.fillRect(55,30,490,420);ctx.strokeStyle='#334488';ctx.lineWidth=3;ctx.strokeRect(53,28,494,424);
+  drawWalls();drawFlippers();drawBumpers();drawTargets();drawPlunger();drawParticles();drawBalls();drawScoreBoard();drawOverlay();
+}
+
+// ==================== CANVAS EVENTS ====================
+function getGameCoords(cx,cy){
+  if(cx===undefined)return editor._lastMouse||{x:300,y:225};
+  const r=canvas.getBoundingClientRect();
+  return{x:Math.max(5,Math.min(W-5,(cx-r.left)*(W/r.width))),y:Math.max(5,Math.min(H-5,(cy-r.top)*(H/r.height)))};
+}
+canvas.addEventListener('mousedown',e=>{if(editor.mode!=='edit')return;handleDown(getGameCoords(e.clientX,e.clientY));});
+canvas.addEventListener('mousemove',e=>{const g=getGameCoords(e.clientX,e.clientY);editor._lastMouse=g;if(editor.mode!=='edit')return;handleMove(g);});
+canvas.addEventListener('mouseup',e=>{if(editor.mode!=='edit')return;handleUp();});
+canvas.addEventListener('mouseleave',()=>{if(editor.mode==='edit')editor.dragging=null;});
+canvas.addEventListener('touchstart',e=>{e.preventDefault();
+  if(editor.mode==='edit'){handleDown(getGameCoords(e.touches[0].clientX,e.touches[0].clientY));return;}
+  const r=canvas.getBoundingClientRect(),sx=W/r.width,sy=H/r.height;
+  for(let t of e.changedTouches){const gx=(t.clientX-r.left)*sx,gy=(t.clientY-r.top)*sy;if(gy>H*0.65){if(gx<W/2)setLeft(true);else setRight(true);}}
+});
+canvas.addEventListener('touchmove',e=>{e.preventDefault();
+  if(editor.mode==='edit'){handleMove(getGameCoords(e.touches[0].clientX,e.touches[0].clientY));return;}
+  const r=canvas.getBoundingClientRect(),sx=W/r.width,sy=H/r.height;setLeft(false);setRight(false);
+  for(let t of e.touches){const gx=(t.clientX-r.left)*sx,gy=(t.clientY-r.top)*sy;if(gy>H*0.65){if(gx<W/2)setLeft(true);else setRight(true);}}
+});
+canvas.addEventListener('touchend',e=>{if(editor.mode==='edit'){handleUp();return;}
+  const r=canvas.getBoundingClientRect(),sx=W/r.width,sy=H/r.height;setLeft(false);setRight(false);
+  for(let t of e.touches){const gx=(t.clientX-r.left)*sx,gy=(t.clientY-r.top)*sy;if(gy>H*0.65){if(gx<W/2)setLeft(true);else setRight(true);}}
+});
+canvas.addEventListener('touchcancel',()=>{setLeft(false);setRight(false);editor.dragging=null;});
+canvas.addEventListener('click',e=>{if(editor.mode==='edit')return;if(game.state==='attract'||game.state==='gameover')initTable();});
+
+function findHoveredComponent(gp){
+  for(let i=customLevel.bumpers.length-1;i>=0;i--){if(Math.hypot(gp.x-customLevel.bumpers[i].x,gp.y-customLevel.bumpers[i].y)<=customLevel.bumpers[i].r+5)return{type:'bumper',index:i};}
+  for(let i=customLevel.targets.length-1;i>=0;i--){const t=customLevel.targets[i];if(gp.x>=t.x-5&&gp.x<=t.x+t.w+5&&gp.y>=t.y-5&&gp.y<=t.y+t.h+5)return{type:'target',index:i};}
+  for(let i=customLevel.flippers.length-1;i>=0;i--){if(Math.hypot(gp.x-customLevel.flippers[i].px,gp.y-customLevel.flippers[i].py)<=16)return{type:'flipper',index:i};}
+  for(let i=customLevel.walls.length-1;i>=0;i--){const w=customLevel.walls[i],cp=closestPointOnSeg(gp.x,gp.y,w[0],w[1],w[2],w[3]);if(Math.hypot(gp.x-cp.x,gp.y-cp.y)<=9)return{type:'wall',index:i};}
+  return null;
+}
+function handleDown(gp){editor._lastMouse=gp;if(!gp)return;
+  if(editor.tool==='wall'&&editor.wallStart){customLevel.walls.push([editor.wallStart.x,editor.wallStart.y,gp.x,gp.y,phys.wallRestitution,'#aaa']);editor.wallStart=null;editor.selected={type:'wall',index:customLevel.walls.length-1};updateButtonStates();return;}
+  const hit=findHoveredComponent(gp);
+  if(hit&&!editor.dragging){editor.selected=hit;editor.dragging={type:hit.type,index:hit.index,ox:gp.x,oy:gp.y};
+    if(hit.type==='bumper'){const b=customLevel.bumpers[hit.index];editor.dragging.origX=b.x;editor.dragging.origY=b.y;}
+    else if(hit.type==='target'){const t=customLevel.targets[hit.index];editor.dragging.origX=t.x;editor.dragging.origY=t.y;}
+    else if(hit.type==='flipper'){const f=customLevel.flippers[hit.index];editor.dragging.origX=f.px;editor.dragging.origY=f.py;}
+    else if(hit.type==='wall'){const w=customLevel.walls[hit.index];editor.dragging.origAX=w[0];editor.dragging.origAY=w[1];editor.dragging.origBX=w[2];editor.dragging.origBY=w[3];}
+    updateButtonStates();return;}
+  if(editor.tool==='wall'){if(!editor.wallStart)editor.wallStart={x:gp.x,y:gp.y};else{customLevel.walls.push([editor.wallStart.x,editor.wallStart.y,gp.x,gp.y,phys.wallRestitution,'#aaa']);editor.wallStart=null;editor.selected={type:'wall',index:customLevel.walls.length-1};}}
+  else if(editor.tool==='bumper'){customLevel.bumpers.push({x:gp.x,y:gp.y,r:20,points:500,color:'#ff3333',glow:0,hitFlash:0,impulse:phys.bumperImpulse});editor.selected={type:'bumper',index:customLevel.bumpers.length-1};}
+  else if(editor.tool==='target'){customLevel.targets.push({x:gp.x,y:gp.y,w:14,h:28,points:1000,color:'#4488ff',active:true,flash:0});editor.selected={type:'target',index:customLevel.targets.length-1};}
+  else if(editor.tool==='flipper'){customLevel.flippers.push({px:gp.x,py:gp.y,len:72,restAngle:0.6,activeAngle:-0.35,side:'left',speed:phys.flipperSpeed,angularSpeed:phys.flipperSpeed,active:false,tip:{x:0,y:0}});editor.selected={type:'flipper',index:customLevel.flippers.length-1};}
+  else{editor.selected=null;}updateButtonStates();
+}
+function handleMove(gp){editor._lastMouse=gp;if(!editor.dragging)return;const d=editor.dragging,dx=gp.x-d.ox,dy=gp.y-d.oy;
+  if(d.type==='bumper'){const b=customLevel.bumpers[d.index];if(!b)return;b.x=Math.max(5,Math.min(W-5,d.origX+dx));b.y=Math.max(5,Math.min(H-5,d.origY+dy));}
+  else if(d.type==='target'){const t=customLevel.targets[d.index];if(!t)return;t.x=Math.max(5,Math.min(W-5,d.origX+dx));t.y=Math.max(5,Math.min(H-5,d.origY+dy));}
+  else if(d.type==='flipper'){const f=customLevel.flippers[d.index];if(!f)return;f.px=Math.max(5,Math.min(W-5,d.origX+dx));f.py=Math.max(5,Math.min(H-5,d.origY+dy));}
+  else if(d.type==='wall'){const w=customLevel.walls[d.index];if(!w)return;w[0]=d.origAX+dx;w[1]=d.origAY+dy;w[2]=d.origBX+dx;w[3]=d.origBY+dy;}
+}
+function handleUp(){editor.dragging=null;}
+
+// ==================== MAIN LOOP ====================
+let lastTime=0;
+function gameLoop(ts){
+  const frameDt = lastTime ? Math.min(ts - lastTime, 50) : 16.667;
+  lastTime = ts;
+  update(frameDt);
+  render();
+  requestAnimationFrame(gameLoop);
+}
+
+// ==================== INIT ====================
+initTable(); game.state='attract'; requestAnimationFrame(gameLoop);
+window.switchMode=switchMode;window.setTool=setTool;
+window.saveLevel=saveLevel;window.loadLevel=loadLevel;
+window.clearLevel=clearLevel;window.resetLevel=resetLevel;
+window.testCustomLevel=testCustomLevel;window.deleteSelected=deleteSelected;
+window.showPropPanel=showPropPanel;window.hidePropPanel=hidePropPanel;window.togglePhysics=togglePhysics;
+console.log('🪐 三维弹球 Space Cadet - 物理引擎 v3 (240Hz Fixed-Timestep)');
+console.log('🛡️ 迭代碰撞求解(3次) | 🎯 弹臂表面速度 | 🏓 碰弹柱复制小球');
+})();
+</script>
+</body>
+</html>
